@@ -26,6 +26,11 @@ class UserModule implements UserModuleInterface
         ]);
     }
 
+    public function findUserByEmail(string $email): UserModelInterface
+    {
+        return $this->user->where('email', $email)->first();
+    }
+
     public function resetPassword(UserModelInterface $user, $password): bool
     {
         $user->password = $password;

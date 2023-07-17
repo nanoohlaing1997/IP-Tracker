@@ -4,11 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Contracts\AuthOTPModuleInterface;
 use App\Contracts\UserModuleInterface;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Laravel\Passport\PersonalAccessTokenFactory;
-use Laravel\Passport\TokenRepository;
 
 class AuthController extends Controller
 {
@@ -21,6 +18,8 @@ class AuthController extends Controller
         $this->userModule = $userModule;
 
         $this->authOTP = $authOTP;
+
+        $this->middleware('auth:api', ['except' => ['login', 'register']]);
     }
 
     public function register(Request $request)
@@ -35,13 +34,10 @@ class AuthController extends Controller
 
         $user = $this->userModule->createUser($validatedData['name'], $validatedData['email'], ['password' => $validatedData['password']]);
         if ($user) {
-            $OTP = $this->authOTP->createOTP($validatedData['email']);
-
             return response()->json(
                 [
                     'data' => [
                         'message' => 'register complete',
-                        'otp' => $OTP->otp_code,
                     ],
                 ],
                 201
@@ -56,24 +52,27 @@ class AuthController extends Controller
         );
     }
 
-    public function login(Request $request, TokenRepository $tokenRepository)
+    public function login(Request $request)
     {
-        $input = $request->all();
-        if (Auth::attempt($input)) {
-            $user = Auth::user();
-            $token = app(PersonalAccessTokenFactory::class)->make(
-                $user->getKey(),
-                'Password Grant',
-                []
-            )->accessToken;
+        $validatedData = $request->validate(
+            [
+                'email' => 'required|email',
+                'password' => 'required',
+            ]
+        );
+        $token = Auth::attempt($validatedData);
 
-            // $token = $user->createToken('Access Token', [])->token;
-
-            $this->authOTP->createOTP($user->email);
+        if ($token) {
+            $OTP = $this->authOTP->createOTP($validatedData['email']);
 
             return response()->json(
                 [
-                    'data' => $token,
+                    'data' => [
+                        'message' => 'login success',
+                        'access_token' => $token,
+                        'token_type' => 'Bearer Token',
+                        'expires_in' => config('jwt.ttl').' minutes',
+                    ],
                 ],
                 200
             );
@@ -141,13 +140,12 @@ class AuthController extends Controller
     {
         $validatedData = $request->validate(
             [
-                'email' => 'required|email',
                 'new_password' => 'required',
             ]
         );
-
-        $user = User::where('email', $validatedData['email'])->first();
-        if ($user) {
+        $authUser = Auth::user();
+        if ($authUser) {
+            $user = $this->userModule->findUserByEmail($authUser->email);
             if ($this->userModule->resetPassword($user, $validatedData['new_password'])) {
                 return response()->json(
                     [
@@ -167,7 +165,7 @@ class AuthController extends Controller
 
         return response()->json(
             [
-                'message' => 'User not found',
+                'message' => 'Auth user not found, please insert token',
             ],
             404
         );

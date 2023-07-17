@@ -7,7 +7,6 @@ use App\Contracts\AuthOTPModuleInterface;
 use App\Models\AuthOTP;
 use App\Modules\AuthOTPModule;
 use Illuminate\Support\ServiceProvider;
-use Laravel\Passport\Passport;
 
 class AuthOTPServiceProvider extends ServiceProvider
 {
@@ -25,6 +24,5 @@ class AuthOTPServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Passport::tokensExpireIn(now()->addMinutes(2)); // Set the expiration time to 2 minutes
     }
 }
